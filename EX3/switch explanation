@@ -1,0 +1,1510 @@
+Absolutely. This is a **Lex/Flex program** used in Compiler Design to perform **lexical analysis of a C-like `switch` statement**.
+
+The main idea is:
+
+> **Read the input character by character → group characters into tokens → identify what each token represents → print information about it.**
+
+It also keeps track of how many `case` and `default` labels appear.
+
+---
+
+# 1. What is this program?
+
+This is a **Lex/Flex lexical analyzer**.
+
+Normally, a compiler has several stages:
+
+```text
+C Program
+   ↓
+Lexical Analysis
+   ↓
+Tokens
+   ↓
+Syntax Analysis
+   ↓
+Semantic Analysis
+   ↓
+...
+```
+
+Your program handles the **lexical analysis** stage.
+
+For example, if the input is:
+
+```c
+switch(x) {
+    case 1:
+        printf("One");
+        break;
+
+    case 2:
+        printf("Two");
+        break;
+
+    default:
+        printf("Invalid");
+}
+```
+
+The Lex program identifies things like:
+
+```text
+switch       → SWITCH
+(            → Left parenthesis
+x            → Identifier
+)            → Right parenthesis
+case         → CASE
+1            → Integer constant
+:            → Colon
+printf       → Library function
+"One"        → String constant
+break        → Control statement
+...
+```
+
+It also counts:
+
+```text
+Number of case labels    : 2
+Number of default labels : 1
+```
+
+---
+
+# 2. Structure of a Lex program
+
+A Lex/Flex program generally has **three sections**:
+
+```text
+%{
+    C declarations
+%}
+
+%%
+    Pattern     { Action }
+    Pattern     { Action }
+%%
+
+    C functions
+```
+
+Your program follows exactly this structure.
+
+---
+
+# 3. First section — C declarations
+
+Your code starts with:
+
+```c
+%{
+#include <stdio.h>
+#include <string.h>
+
+int case_count = 0;
+int default_count = 0;
+%}
+```
+
+The `%{ ... %}` section contains normal C code.
+
+### Header files
+
+```c
+#include <stdio.h>
+```
+
+This is needed for:
+
+```c
+printf()
+```
+
+You have:
+
+```c
+#include <string.h>
+```
+
+but this particular program doesn't actually use any function from `string.h`.
+
+So technically, it can be removed.
+
+---
+
+### Counters
+
+```c
+int case_count = 0;
+int default_count = 0;
+```
+
+These variables count the number of:
+
+```text
+case
+default
+```
+
+statements.
+
+Initially:
+
+```text
+case_count = 0
+default_count = 0
+```
+
+Whenever Lex recognizes `case`:
+
+```c
+case_count++;
+```
+
+Whenever it recognizes `default`:
+
+```c
+default_count++;
+```
+
+---
+
+# 4. The `%%`
+
+After the declaration section:
+
+```c
+%%
+```
+
+This tells Lex:
+
+> "The declarations are finished. Now start defining patterns and actions."
+
+Everything between the first and second `%%` is the **rule section**.
+
+---
+
+# 5. How Lex rules work
+
+The basic format is:
+
+```text
+pattern    { action }
+```
+
+For example:
+
+```c
+"case" {
+    case_count++;
+    printf("\n[CASE %d] case label found\n", case_count);
+}
+```
+
+Here:
+
+```text
+"case"
+```
+
+is the **pattern**.
+
+And:
+
+```c
+{
+    case_count++;
+    printf(...);
+}
+```
+
+is the **action**.
+
+So when Lex sees:
+
+```c
+case
+```
+
+it executes that action.
+
+---
+
+# 6. Detecting `switch`
+
+You have:
+
+```c
+"switch" {
+    printf("\n[SWITCH] switch statement found\n");
+}
+```
+
+If the input contains:
+
+```c
+switch
+```
+
+Lex recognizes it and prints:
+
+```text
+[SWITCH] switch statement found
+```
+
+---
+
+# 7. Detecting `case`
+
+```c
+"case" {
+    case_count++;
+    printf("\n[CASE %d] case label found\n", case_count);
+}
+```
+
+Suppose the input contains:
+
+```c
+case 1:
+case 2:
+case 3:
+```
+
+The first time:
+
+```text
+case_count = 1
+```
+
+Output:
+
+```text
+[CASE 1] case label found
+```
+
+Second:
+
+```text
+[CASE 2] case label found
+```
+
+Third:
+
+```text
+[CASE 3] case label found
+```
+
+So this rule does **two jobs**:
+
+1. Recognizes `case`
+2. Counts it
+
+---
+
+# 8. Detecting `default`
+
+```c
+"default" {
+    default_count++;
+    printf("\n[DEFAULT] default label found\n");
+}
+```
+
+Whenever:
+
+```c
+default
+```
+
+is found:
+
+```c
+default_count++;
+```
+
+Therefore, if there is one default:
+
+```text
+Number of default labels : 1
+```
+
+---
+
+# 9. Arithmetic operators
+
+You have rules such as:
+
+```c
+"+"  { printf("Arithmetic operator: +\n"); }
+"-"  { printf("Arithmetic operator: -\n"); }
+"*"  { printf("Arithmetic operator: *\n"); }
+"/"  { printf("Arithmetic operator: /\n"); }
+"%"  { printf("Arithmetic operator: %%\n"); }
+```
+
+These recognize arithmetic operators.
+
+| Input | Meaning        |
+| ----- | -------------- |
+| `+`   | Addition       |
+| `-`   | Subtraction    |
+| `*`   | Multiplication |
+| `/`   | Division       |
+| `%`   | Modulus        |
+
+For example:
+
+```c
+a + b
+```
+
+produces something like:
+
+```text
+Identifier: a
+Arithmetic operator: +
+Identifier: b
+```
+
+### Why `%%` in printf?
+
+This is important.
+
+Inside a C `printf()` format string:
+
+```c
+"%"
+```
+
+has a special meaning.
+
+To print an actual `%`, you write:
+
+```c
+"%%"
+```
+
+Therefore:
+
+```c
+printf("Arithmetic operator: %%\n");
+```
+
+prints:
+
+```text
+Arithmetic operator: %
+```
+
+---
+
+# 10. Relational operators
+
+These rules recognize:
+
+```c
+"==" 
+"!="
+"<="
+">="
+"<"
+">"
+```
+
+For example:
+
+```c
+a >= b
+```
+
+produces:
+
+```text
+Identifier: a
+Relational operator: >=
+Identifier: b
+```
+
+---
+
+# 11. Logical operators
+
+```c
+"&&"
+"||"
+"!"
+```
+
+These represent:
+
+```text
+&& → Logical AND
+|| → Logical OR
+!  → Logical NOT
+```
+
+For:
+
+```c
+a > 10 && b < 20
+```
+
+Lex identifies:
+
+```text
+Identifier: a
+Relational operator: >
+Integer constant: 10
+Logical operator: &&
+Identifier: b
+Relational operator: <
+Integer constant: 20
+```
+
+---
+
+# 12. Assignment operators
+
+You recognize:
+
+```c
+"+="
+"-="
+"*="
+"/="
+"%="
+"="
+```
+
+For example:
+
+```c
+x += 5;
+```
+
+becomes:
+
+```text
+Identifier: x
+Assignment operator: +=
+Integer constant: 5
+Semicolon: ;
+```
+
+---
+
+# 13. Increment and decrement
+
+```c
+"++" { printf("Increment operator: ++\n"); }
+"--" { printf("Decrement operator: --\n"); }
+```
+
+So:
+
+```c
+i++
+```
+
+becomes:
+
+```text
+Identifier: i
+Increment operator: ++
+```
+
+---
+
+# 14. Bitwise operators
+
+You recognize:
+
+```text
+&
+|
+^
+<<
+>>
+~
+```
+
+For example:
+
+```c
+a << 2
+```
+
+produces:
+
+```text
+Identifier: a
+Bitwise shift operator: <<
+Integer constant: 2
+```
+
+---
+
+# 15. Brackets and punctuation
+
+You have rules for:
+
+```text
+(
+)
+{
+}
+[
+]
+:
+;
+,
+```
+
+For example:
+
+```c
+case 1:
+```
+
+will produce:
+
+```text
+[CASE 1] case label found
+Integer constant: 1
+Colon: :
+```
+
+And:
+
+```c
+switch(x)
+```
+
+produces:
+
+```text
+[SWITCH] switch statement found
+Left parenthesis: (
+Identifier: x
+Right parenthesis: )
+```
+
+---
+
+# 16. Control statements
+
+You recognize:
+
+```c
+"break"
+"continue"
+"return"
+```
+
+For example:
+
+```c
+break;
+```
+
+produces:
+
+```text
+Control statement: break
+Semicolon: ;
+```
+
+---
+
+# 17. Conditional statements
+
+You recognize:
+
+```c
+"if"
+"else"
+```
+
+So:
+
+```c
+if (x > 10)
+```
+
+produces tokens corresponding to:
+
+```text
+Conditional statement: if
+Left parenthesis: (
+Identifier: x
+Relational operator: >
+Integer constant: 10
+Right parenthesis: )
+```
+
+---
+
+# 18. Loop statements
+
+You recognize:
+
+```c
+for
+while
+do
+```
+
+For example:
+
+```c
+while (x < 10)
+```
+
+will recognize:
+
+```text
+Loop statement: while
+Left parenthesis: (
+Identifier: x
+Relational operator: <
+Integer constant: 10
+Right parenthesis: )
+```
+
+---
+
+# 19. Library functions
+
+You specifically recognize:
+
+```c
+"printf"
+"scanf"
+```
+
+So:
+
+```c
+printf("Hello");
+```
+
+produces:
+
+```text
+Library function: printf()
+Left parenthesis: (
+String constant: "Hello"
+Right parenthesis: )
+Semicolon: ;
+```
+
+---
+
+# 20. Data types
+
+You recognize:
+
+```c
+int
+float
+char
+double
+```
+
+For example:
+
+```c
+int x;
+```
+
+produces:
+
+```text
+Data type: int
+Identifier: x
+Semicolon: ;
+```
+
+---
+
+# 21. Integer constants
+
+This is a **regular expression**:
+
+```c
+[0-9]+
+```
+
+It means:
+
+> One or more digits from 0 to 9.
+
+Examples:
+
+```text
+1
+25
+100
+999
+```
+
+are matched.
+
+Then:
+
+```c
+printf("Integer constant: %s\n", yytext);
+```
+
+prints the actual number.
+
+---
+
+# 22. What is `yytext`?
+
+This is one of the most important things to understand in Lex.
+
+`yytext` is a Lex/Flex predefined variable that contains the **actual text matched by the current pattern**.
+
+Suppose the input is:
+
+```c
+123
+```
+
+and this pattern matches:
+
+```c
+[0-9]+
+```
+
+Then:
+
+```text
+yytext = "123"
+```
+
+So:
+
+```c
+printf("Integer constant: %s\n", yytext);
+```
+
+prints:
+
+```text
+Integer constant: 123
+```
+
+Similarly, if the input is:
+
+```c
+hello
+```
+
+and the identifier rule matches it:
+
+```c
+[a-zA-Z_][a-zA-Z0-9_]*
+```
+
+then:
+
+```text
+yytext = "hello"
+```
+
+---
+
+# 23. Floating-point constants
+
+You have:
+
+```c
+[0-9]+\.[0-9]+
+```
+
+This matches values such as:
+
+```text
+3.14
+10.5
+100.25
+```
+
+The `\.` means a **literal dot**.
+
+So:
+
+```text
+[0-9]+
+```
+
+means one or more digits.
+
+```text
+\.
+```
+
+means a decimal point.
+
+```text
+[0-9]+
+```
+
+means one or more digits after the decimal point.
+
+Together:
+
+```text
+digits + decimal point + digits
+```
+
+---
+
+# 24. Character constants
+
+You have:
+
+```c
+\'[a-zA-Z0-9]\'
+```
+
+This recognizes character constants such as:
+
+```c
+'a'
+'B'
+'5'
+```
+
+The structure is:
+
+```text
+' + one alphanumeric character + '
+```
+
+---
+
+# 25. String constants
+
+This is one of the more complicated regular expressions:
+
+```c
+\"([^\"\\]|\\.)*\"
+```
+
+It recognizes strings such as:
+
+```c
+"Hello"
+"Hello World"
+"Value = 10"
+```
+
+The purpose is to allow characters inside quotes and also escaped characters.
+
+For example:
+
+```c
+"Hello\n"
+```
+
+can be recognized as a string.
+
+You don't need to memorize this entire expression initially. The important idea is:
+
+> It recognizes a sequence enclosed within double quotes.
+
+---
+
+# 26. Identifiers
+
+This is another very important regular expression:
+
+```c
+[a-zA-Z_][a-zA-Z0-9_]*
+```
+
+It recognizes C-style identifiers.
+
+Examples:
+
+```text
+x
+number
+count
+total_sum
+_marks
+student123
+```
+
+The first character must be:
+
+```text
+a-z
+A-Z
+_
+```
+
+After that, you can have:
+
+```text
+a-z
+A-Z
+0-9
+_
+```
+
+That's why:
+
+```text
+student123
+```
+
+is valid.
+
+But:
+
+```text
+123student
+```
+
+is not recognized as an identifier.
+
+---
+
+# 27. Ignoring spaces and newlines
+
+You have:
+
+```c
+[ \t\n]+ ;
+```
+
+This means:
+
+> Ignore spaces, tabs, and newlines.
+
+For example:
+
+```c
+switch ( x )
+```
+
+The spaces don't represent useful tokens for your analyzer, so Lex simply ignores them.
+
+The semicolon after the pattern is effectively an **empty action**.
+
+---
+
+# 28. Unknown symbols
+
+Finally:
+
+```c
+. {
+    printf("Unknown symbol: %s\n", yytext);
+}
+```
+
+The `.` means:
+
+> Match any single character that hasn't been matched by an earlier rule.
+
+For example, if the input contains:
+
+```text
+@
+```
+
+and you don't have an `@` rule, you'll get:
+
+```text
+Unknown symbol: @
+```
+
+This acts as a **catch-all rule**.
+
+---
+
+# 29. The most important concept: rule priority
+
+This is very important for understanding how the program works.
+
+Flex generally follows:
+
+> **Longest match wins. If two rules match the same amount of text, the earlier rule wins.**
+
+For example:
+
+```c
+>=
+```
+
+There are rules for:
+
+```text
+>
+>=
+```
+
+When Flex sees:
+
+```text
+>=
+```
+
+it chooses:
+
+```text
+>=
+```
+
+because it is the **longer match**.
+
+Similarly:
+
+```c
+++
+```
+
+is matched as:
+
+```text
+++
+```
+
+rather than:
+
+```text
++
++
+```
+
+because `++` is the longer match.
+
+---
+
+# 30. What happens with keywords and identifiers?
+
+This is particularly important.
+
+You have:
+
+```c
+"switch"
+```
+
+and later:
+
+```c
+[a-zA-Z_][a-zA-Z0-9_]*
+```
+
+Both can potentially match:
+
+```text
+switch
+```
+
+Both have length 6.
+
+So Flex uses the rule appearing **earlier**.
+
+Therefore:
+
+```text
+switch
+```
+
+is recognized as:
+
+```text
+[SWITCH] switch statement found
+```
+
+rather than:
+
+```text
+Identifier: switch
+```
+
+The same applies to:
+
+```text
+case
+default
+if
+else
+for
+while
+int
+float
+char
+double
+```
+
+because their specific rules occur before the generic identifier rule.
+
+---
+
+# 31. Main function
+
+At the end:
+
+```c
+int main()
+{
+    printf("Enter the switch statement:\n\n");
+
+    yylex();
+
+    printf("\n-----------------------------\n");
+    printf("Switch Analysis Completed\n");
+    printf("-----------------------------\n");
+
+    printf("Number of case labels    : %d\n", case_count);
+    printf("Number of default labels : %d\n", default_count);
+
+    return 0;
+}
+```
+
+This is the normal C `main()` function.
+
+The important line is:
+
+```c
+yylex();
+```
+
+---
+
+# 32. What is `yylex()`?
+
+`yylex()` is the **lexer function automatically generated by Lex/Flex**.
+
+When you call:
+
+```c
+yylex();
+```
+
+the lexer starts reading input.
+
+Conceptually:
+
+```text
+Input
+  ↓
+ yylex()
+  ↓
+Find matching pattern
+  ↓
+Execute action
+  ↓
+Find next pattern
+  ↓
+Execute action
+  ↓
+...
+  ↓
+End of input
+```
+
+So your `main()` doesn't manually scan the input.
+
+**Flex generates `yylex()` for you.**
+
+---
+
+# 33. `yywrap()`
+
+You have:
+
+```c
+int yywrap()
+{
+    return 1;
+}
+```
+
+When Flex reaches the end of input, it calls `yywrap()`.
+
+Returning:
+
+```c
+1
+```
+
+means:
+
+> There is no more input. Stop scanning.
+
+So:
+
+```text
+yywrap() → 1 → lexer terminates
+```
+
+---
+
+# 34. Complete execution flow
+
+Suppose you give this input:
+
+```c
+switch(x) {
+    case 1:
+        printf("One");
+        break;
+
+    case 2:
+        printf("Two");
+        break;
+
+    default:
+        printf("Invalid");
+}
+```
+
+The lexer roughly works like this:
+
+```text
+switch
+  ↓
+matches "switch"
+  ↓
+print SWITCH
+```
+
+Then:
+
+```text
+(
+  ↓
+matches "("
+  ↓
+print Left parenthesis
+```
+
+Then:
+
+```text
+x
+  ↓
+matches identifier pattern
+  ↓
+print Identifier: x
+```
+
+Then:
+
+```text
+)
+  ↓
+Right parenthesis
+```
+
+Then:
+
+```text
+{
+  ↓
+Left brace
+```
+
+Then:
+
+```text
+case
+  ↓
+matches "case"
+  ↓
+case_count++
+  ↓
+case_count = 1
+```
+
+Then:
+
+```text
+1
+  ↓
+matches [0-9]+
+  ↓
+Integer constant
+```
+
+Then:
+
+```text
+:
+  ↓
+Colon
+```
+
+And so on.
+
+When it reaches the second `case`:
+
+```text
+case_count = 2
+```
+
+When it reaches:
+
+```text
+default
+```
+
+it performs:
+
+```text
+default_count++
+```
+
+giving:
+
+```text
+default_count = 1
+```
+
+Finally, when input ends:
+
+```text
+yywrap()
+  ↓
+return 1
+  ↓
+yylex() finishes
+  ↓
+main() prints summary
+```
+
+---
+
+# 35. Overall logic in one diagram
+
+You can remember the entire program like this:
+
+```text
+              INPUT
+                │
+                ▼
+             yylex()
+                │
+                ▼
+       Read next piece of text
+                │
+                ▼
+       Compare with Lex rules
+                │
+       ┌────────┼─────────┐
+       ▼        ▼         ▼
+   Keyword   Operator   Identifier
+       │        │         │
+       ▼        ▼         ▼
+     Action   Action    Action
+       │        │         │
+       └────────┼─────────┘
+                │
+                ▼
+          Next input
+                │
+                ▼
+             Repeat
+                │
+                ▼
+          End of input
+                │
+                ▼
+         Print statistics
+                │
+                ▼
+     case_count / default_count
+```
+
+---
+
+# 36. What is the actual purpose of this program?
+
+Although it recognizes many C tokens, its **special purpose** is to analyze a `switch` statement.
+
+The important information is:
+
+```text
+switch found
+case labels found
+default label found
+```
+
+while also identifying the tokens inside the switch:
+
+```text
+operators
+identifiers
+constants
+data types
+printf/scanf
+if/else
+loops
+break/continue/return
+punctuation
+```
+
+So you can describe it in an exam/viva as:
+
+> **"This Flex program performs lexical analysis of a C-like switch statement. It recognizes keywords, identifiers, constants, operators, punctuation, control statements, conditional statements, loops and library functions. It also maintains counters to determine the number of `case` and `default` labels present in the input."**
+
+---
+
+## 37. One important limitation in your program
+
+There is one thing you should understand for your **Compiler Design lab/viva**.
+
+The program recognizes the word:
+
+```text
+case
+```
+
+wherever it appears. It does **not actually verify that the `case` is inside a `switch` statement**.
+
+For example:
+
+```c
+int case = 10;
+```
+
+isn't valid C anyway, but the lexer doesn't understand the full grammatical context.
+
+More importantly, Lex by itself is primarily doing **lexical analysis**, not full syntax analysis.
+
+So your program is essentially saying:
+
+> "Whenever I see the token `case`, count it."
+
+It isn't proving:
+
+> "This is a syntactically valid case label belonging to this particular switch."
+
+That kind of structural validation belongs more naturally to the **parser/syntax analysis stage**.
+
+---
+
+### The 5 things you should definitely remember for your viva
+
+1. **`%{ ... %}`** → C declarations/header files.
+2. **`%% ... %%`** → Lex rules: `pattern { action }`.
+3. **`yytext`** → actual text matched by the current pattern.
+4. **`yylex()`** → generated lexer function that scans the input.
+5. **`yywrap()`** → tells the lexer what to do when input ends.
+
+And the core logic is simply:
+
+**Input → Pattern Matching → Action → Next Token → Repeat → Final Count.**
