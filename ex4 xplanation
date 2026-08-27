@@ -1,0 +1,1269 @@
+Yes. But there is an important distinction:
+
+Your current program is **LEX/FLEX**, which recognizes individual tokens.
+A **YACC/Bison** program is used to recognize the **syntax/grammar** of the `switch` statement.
+
+So, for YACC, we normally use:
+
+```text
+Lex/Flex → produces tokens
+             ↓
+YACC/Bison → checks grammar
+```
+
+For your lab, the best approach is to make a **YACC program that parses a C-like `switch` statement**, while Flex supplies the tokens.
+
+---
+
+# 1. YACC version
+
+A complete solution normally consists of **two files**:
+
+```text
+switch.l    → FLEX file
+switch.y    → YACC file
+```
+
+The `.l` file identifies tokens such as `switch`, `case`, `default`, identifiers, numbers, operators, etc.
+
+The `.y` file defines how those tokens are arranged to form a valid `switch` statement.
+
+---
+
+## `switch.l` — Lexical Analyzer
+
+```c
+%{
+#include "y.tab.h"
+%}
+
+%%
+
+"switch"        { return SWITCH; }
+"case"          { return CASE; }
+"default"       { return DEFAULT; }
+"break"          { return BREAK; }
+"continue"       { return CONTINUE; }
+"return"         { return RETURN; }
+
+"if"             { return IF; }
+"else"           { return ELSE; }
+
+"for"            { return FOR; }
+"while"          { return WHILE; }
+"do"             { return DO; }
+
+"printf"         { return PRINTF; }
+"scanf"          { return SCANF; }
+
+"int"            { return INT; }
+"float"          { return FLOAT; }
+"char"           { return CHAR; }
+"double"         { return DOUBLE; }
+
+"=="             { return EQ; }
+"!="             { return NE; }
+"<="             { return LE; }
+">="             { return GE; }
+"<"              { return LT; }
+">"              { return GT; }
+
+"&&"             { return AND; }
+"||"             { return OR; }
+"!"              { return NOT; }
+
+"+="             { return ADD_ASSIGN; }
+"-="             { return SUB_ASSIGN; }
+"*="             { return MUL_ASSIGN; }
+"/="             { return DIV_ASSIGN; }
+"%="             { return MOD_ASSIGN; }
+"="              { return ASSIGN; }
+
+"++"             { return INC; }
+"--"             { return DEC; }
+
+"+"              { return PLUS; }
+"-"              { return MINUS; }
+"*"              { return MUL; }
+"/"              { return DIV; }
+"%"              { return MOD; }
+
+"("              { return LPAREN; }
+")"              { return RPAREN; }
+"{"              { return LBRACE; }
+"}"              { return RBRACE; }
+"["              { return LBRACKET; }
+"]"              { return RBRACKET; }
+
+":"              { return COLON; }
+";"              { return SEMICOLON; }
+","              { return COMMA; }
+
+[0-9]+\.[0-9]+  { return FLOAT_CONST; }
+[0-9]+          { return INT_CONST; }
+
+\'[a-zA-Z0-9]\' { return CHAR_CONST; }
+
+\"([^\"\\]|\\.)*\" {
+                    return STRING;
+                  }
+
+[a-zA-Z_][a-zA-Z0-9_]* {
+                    return ID;
+                  }
+
+[ \t\n]+         ;
+
+.                { return UNKNOWN; }
+
+%%
+
+int yywrap()
+{
+    return 1;
+}
+```
+
+---
+
+# 2. YACC file — `switch.y`
+
+Here is the grammar.
+
+```c
+%{
+#include <stdio.h>
+
+int yylex();
+void yyerror(const char *s);
+
+int case_count = 0;
+int default_count = 0;
+%}
+
+/* Tokens */
+
+%token SWITCH
+%token CASE DEFAULT
+
+%token BREAK CONTINUE RETURN
+%token IF ELSE
+%token FOR WHILE DO
+
+%token PRINTF SCANF
+
+%token INT FLOAT CHAR DOUBLE
+
+%token ID
+%token INT_CONST FLOAT_CONST CHAR_CONST STRING
+
+%token PLUS MINUS MUL DIV MOD
+%token EQ NE LE GE LT GT
+%token AND OR NOT
+%token ASSIGN
+%token ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
+%token INC DEC
+
+%token LPAREN RPAREN
+%token LBRACE RBRACE
+%token LBRACKET RBRACKET
+%token COLON SEMICOLON COMMA
+
+%token UNKNOWN
+
+%%
+
+/* Start symbol */
+
+program:
+        switch_statement
+        {
+            printf("\n-----------------------------\n");
+            printf("Switch Analysis Completed\n");
+            printf("-----------------------------\n");
+
+            printf("Number of case labels    : %d\n", case_count);
+            printf("Number of default labels : %d\n", default_count);
+        }
+        ;
+
+/* Switch statement */
+
+switch_statement:
+        SWITCH LPAREN expression RPAREN
+        LBRACE
+        case_list
+        RBRACE
+        {
+            printf("\nValid switch statement\n");
+        }
+        ;
+
+/* List of cases */
+
+case_list:
+        case_list case_block
+        |
+        case_list default_block
+        |
+        case_block
+        |
+        default_block
+        ;
+
+/* Case block */
+
+case_block:
+        CASE constant COLON statement_list
+        {
+            case_count++;
+            printf("Case label found\n");
+        }
+        ;
+
+/* Default block */
+
+default_block:
+        DEFAULT COLON statement_list
+        {
+            default_count++;
+            printf("Default label found\n");
+        }
+        ;
+
+/* Statements */
+
+statement_list:
+        statement_list statement
+        |
+        statement
+        ;
+
+/* Different types of statements */
+
+statement:
+        expression_statement
+        |
+        BREAK SEMICOLON
+        {
+            printf("break statement found\n");
+        }
+        |
+        CONTINUE SEMICOLON
+        {
+            printf("continue statement found\n");
+        }
+        |
+        RETURN expression SEMICOLON
+        {
+            printf("return statement found\n");
+        }
+        |
+        conditional_statement
+        |
+        loop_statement
+        |
+        function_call
+        ;
+
+/* Expression statement */
+
+expression_statement:
+        expression SEMICOLON
+        ;
+
+/* If-else */
+
+conditional_statement:
+        IF LPAREN expression RPAREN statement
+        |
+        IF LPAREN expression RPAREN statement ELSE statement
+        ;
+
+/* Loops */
+
+loop_statement:
+        WHILE LPAREN expression RPAREN statement
+        |
+        DO statement WHILE LPAREN expression RPAREN SEMICOLON
+        |
+        FOR LPAREN expression_statement
+              expression_statement
+              expression
+        RPAREN statement
+        ;
+
+/* Function calls */
+
+function_call:
+        PRINTF LPAREN STRING RPAREN SEMICOLON
+        |
+        SCANF LPAREN STRING RPAREN SEMICOLON
+        ;
+
+/* Expressions */
+
+expression:
+        ID
+        |
+        INT_CONST
+        |
+        FLOAT_CONST
+        |
+        CHAR_CONST
+        |
+        expression PLUS expression
+        |
+        expression MINUS expression
+        |
+        expression MUL expression
+        |
+        expression DIV expression
+        |
+        expression MOD expression
+        |
+        expression EQ expression
+        |
+        expression NE expression
+        |
+        expression LT expression
+        |
+        expression GT expression
+        |
+        expression LE expression
+        |
+        expression GE expression
+        |
+        expression AND expression
+        |
+        expression OR expression
+        |
+        NOT expression
+        |
+        ID ASSIGN expression
+        |
+        LPAREN expression RPAREN
+        ;
+
+/* Constants allowed in case */
+
+constant:
+        INT_CONST
+        |
+        FLOAT_CONST
+        |
+        CHAR_CONST
+        ;
+
+%%
+
+int main()
+{
+    printf("Enter the switch statement:\n\n");
+
+    if (yyparse() == 0)
+    {
+        printf("\nParsing successful.\n");
+    }
+    else
+    {
+        printf("\nParsing failed.\n");
+    }
+
+    return 0;
+}
+
+void yyerror(const char *s)
+{
+    printf("\nSyntax Error: %s\n", s);
+}
+```
+
+---
+
+# 3. Now understand the difference between your FLEX code and this YACC code
+
+This is the **most important concept**.
+
+Your original Flex program does this:
+
+```text
+Input
+  ↓
+LEX
+  ↓
+Identify individual tokens
+```
+
+For example:
+
+```c
+switch(x)
+```
+
+Flex sees:
+
+```text
+SWITCH
+LPAREN
+ID
+RPAREN
+```
+
+But Flex doesn't really ask:
+
+> "Is this a valid switch statement?"
+
+YACC does that.
+
+```text
+Input
+  ↓
+LEX
+  ↓
+Tokens
+  ↓
+YACC
+  ↓
+Grammar checking
+  ↓
+Valid / Invalid
+```
+
+---
+
+# 4. What is a grammar?
+
+YACC works using **grammar rules**.
+
+For example:
+
+```c
+switch_statement:
+        SWITCH LPAREN expression RPAREN
+        LBRACE
+        case_list
+        RBRACE
+        ;
+```
+
+This says:
+
+> A valid `switch_statement` must have `switch`, followed by `(`, an expression, `)`, `{`, a list of cases, and finally `}`.
+
+In simplified form:
+
+```text
+switch_statement
+       ↓
+switch ( expression ) { case_list }
+```
+
+---
+
+# 5. Understanding the YACC syntax
+
+A YACC rule looks like:
+
+```text
+non_terminal:
+        production
+        ;
+```
+
+For example:
+
+```c
+case_block:
+        CASE constant COLON statement_list
+        ;
+```
+
+This means:
+
+```text
+case_block
+    ↓
+CASE + constant + : + statement_list
+```
+
+So:
+
+```c
+case 10:
+    printf("Ten");
+```
+
+can match this grammar.
+
+---
+
+# 6. Why do we use `%token`?
+
+At the beginning you have:
+
+```c
+%token SWITCH
+%token CASE DEFAULT
+```
+
+These are tokens that come from Lex.
+
+For example, Lex has:
+
+```c
+"switch" {
+    return SWITCH;
+}
+```
+
+So when Lex reads:
+
+```text
+switch
+```
+
+it returns:
+
+```text
+SWITCH
+```
+
+to YACC.
+
+Similarly:
+
+```c
+"case" {
+    return CASE;
+}
+```
+
+returns:
+
+```text
+CASE
+```
+
+---
+
+# 7. Communication between Lex and YACC
+
+This is the key architecture:
+
+```text
+                 INPUT
+                   │
+                   ▼
+              FLEX / LEX
+                   │
+                   │ Tokens
+                   ▼
+              YACC / BISON
+                   │
+                   ▼
+              Grammar Rules
+                   │
+             ┌─────┴─────┐
+             ▼           ▼
+          Valid        Invalid
+```
+
+For example:
+
+```c
+switch(x) {
+    case 1:
+        break;
+}
+```
+
+Flex produces:
+
+```text
+SWITCH
+LPAREN
+ID
+RPAREN
+LBRACE
+CASE
+INT_CONST
+COLON
+BREAK
+SEMICOLON
+RBRACE
+```
+
+YACC receives these tokens and tries to match:
+
+```text
+switch_statement
+        ↓
+SWITCH LPAREN expression RPAREN
+LBRACE case_list RBRACE
+```
+
+---
+
+# 8. Understanding `case_list`
+
+This rule:
+
+```c
+case_list:
+        case_list case_block
+        |
+        case_list default_block
+        |
+        case_block
+        |
+        default_block
+        ;
+```
+
+allows multiple cases.
+
+For example:
+
+```c
+switch(x)
+{
+    case 1:
+        break;
+
+    case 2:
+        break;
+
+    case 3:
+        break;
+
+    default:
+        break;
+}
+```
+
+The parser can conceptually build:
+
+```text
+case_list
+   │
+   ├── case_block
+   ├── case_block
+   ├── case_block
+   └── default_block
+```
+
+---
+
+# 9. How `case_count` works in YACC
+
+Look at:
+
+```c
+case_block:
+        CASE constant COLON statement_list
+        {
+            case_count++;
+            printf("Case label found\n");
+        }
+        ;
+```
+
+The part:
+
+```c
+CASE constant COLON statement_list
+```
+
+is the grammar.
+
+The part:
+
+```c
+{
+    case_count++;
+    printf("Case label found\n");
+}
+```
+
+is the **semantic action**.
+
+So when YACC successfully recognizes an entire case block:
+
+```text
+CASE
+  ↓
+constant
+  ↓
+:
+  ↓
+statements
+  ↓
+SUCCESS
+  ↓
+case_count++
+```
+
+This is slightly different from your original Lex program.
+
+---
+
+# 10. Difference in counting
+
+In your original Lex program:
+
+```c
+"case" {
+    case_count++;
+}
+```
+
+The counter increments as soon as Lex sees the word:
+
+```text
+case
+```
+
+In YACC:
+
+```c
+case_block:
+    CASE constant COLON statement_list
+    {
+        case_count++;
+    }
+```
+
+The counter increments **only after the complete case block has been successfully parsed**.
+
+This is a better demonstration of syntax analysis.
+
+---
+
+# 11. `default` works similarly
+
+You have:
+
+```c
+default_block:
+        DEFAULT COLON statement_list
+        {
+            default_count++;
+            printf("Default label found\n");
+        }
+        ;
+```
+
+The grammar is:
+
+```text
+default
+   +
+:
+   +
+statements
+```
+
+Once that entire structure is valid:
+
+```text
+default_count++
+```
+
+---
+
+# 12. What does `expression` mean?
+
+You have:
+
+```c
+expression:
+        ID
+        |
+        INT_CONST
+        |
+        FLOAT_CONST
+        |
+        CHAR_CONST
+        |
+        expression PLUS expression
+        |
+        expression MINUS expression
+        ...
+```
+
+This allows expressions such as:
+
+```c
+x
+10
+3.14
+'a'
+x + 10
+x - 5
+x * 2
+x > 10
+x == 5
+x && y
+```
+
+So:
+
+```c
+switch(x)
+```
+
+works because:
+
+```text
+x
+↓
+ID
+↓
+expression
+```
+
+---
+
+# 13. Why is `constant` separate?
+
+You have:
+
+```c
+constant:
+        INT_CONST
+        |
+        FLOAT_CONST
+        |
+        CHAR_CONST
+        ;
+```
+
+This is useful because C `case` labels normally use a constant expression.
+
+For example:
+
+```c
+case 1:
+```
+
+means:
+
+```text
+CASE
+ ↓
+INT_CONST
+ ↓
+COLON
+```
+
+And:
+
+```c
+case 'a':
+```
+
+means:
+
+```text
+CASE
+ ↓
+CHAR_CONST
+ ↓
+COLON
+```
+
+---
+
+# 14. `statement_list`
+
+You have:
+
+```c
+statement_list:
+        statement_list statement
+        |
+        statement
+        ;
+```
+
+This means:
+
+> A statement list can contain one or more statements.
+
+For example:
+
+```c
+case 1:
+    printf("One");
+    break;
+```
+
+has:
+
+```text
+statement_list
+    │
+    ├── printf(...)
+    └── break
+```
+
+---
+
+# 15. `statement`
+
+You define different types of statements:
+
+```c
+statement:
+        expression_statement
+        |
+        BREAK SEMICOLON
+        |
+        CONTINUE SEMICOLON
+        |
+        RETURN expression SEMICOLON
+        |
+        conditional_statement
+        |
+        loop_statement
+        |
+        function_call
+        ;
+```
+
+So a `statement` could be:
+
+```c
+x = 10;
+```
+
+or:
+
+```c
+break;
+```
+
+or:
+
+```c
+continue;
+```
+
+or:
+
+```c
+return x;
+```
+
+or:
+
+```c
+if (...)
+```
+
+or:
+
+```c
+while (...)
+```
+
+or:
+
+```c
+printf(...);
+```
+
+---
+
+# 16. What happens when syntax is wrong?
+
+Suppose the user enters:
+
+```c
+switch(x) {
+    case 1
+        break;
+}
+```
+
+Notice:
+
+```text
+case 1
+```
+
+is missing:
+
+```text
+:
+```
+
+The grammar expects:
+
+```text
+CASE constant COLON statement_list
+```
+
+but receives:
+
+```text
+CASE INT_CONST BREAK
+```
+
+YACC cannot match the grammar.
+
+Therefore:
+
+```c
+yyerror(const char *s)
+```
+
+is called.
+
+You will get something like:
+
+```text
+Syntax Error: syntax error
+```
+
+and:
+
+```text
+Parsing failed.
+```
+
+---
+
+# 17. What happens with a valid input?
+
+For:
+
+```c
+switch(x)
+{
+    case 1:
+        printf("One");
+        break;
+
+    case 2:
+        printf("Two");
+        break;
+
+    default:
+        printf("Other");
+}
+```
+
+The process is:
+
+```text
+switch
+ ↓
+SWITCH
+
+(
+ ↓
+LPAREN
+
+x
+ ↓
+ID
+
+)
+ ↓
+RPAREN
+
+{
+ ↓
+LBRACE
+
+case
+ ↓
+CASE
+
+1
+ ↓
+INT_CONST
+
+:
+ ↓
+COLON
+```
+
+YACC matches:
+
+```text
+case_block
+```
+
+Then:
+
+```text
+case_count++
+```
+
+The second case does the same.
+
+Then:
+
+```text
+default
+```
+
+matches:
+
+```text
+default_block
+```
+
+and:
+
+```text
+default_count++
+```
+
+Finally:
+
+```text
+}
+```
+
+matches `RBRACE`.
+
+Then:
+
+```text
+switch_statement
+```
+
+is successfully recognized.
+
+---
+
+# 18. `yyparse()` vs `yylex()`
+
+This is another important viva question.
+
+### In Lex:
+
+```c
+yylex();
+```
+
+means:
+
+> Start lexical analysis.
+
+### In YACC:
+
+```c
+yyparse();
+```
+
+means:
+
+> Start syntax analysis.
+
+But internally, YACC calls `yylex()` whenever it needs another token.
+
+So:
+
+```text
+yyparse()
+   │
+   ├── asks yylex() for token
+   │
+   ├── receives token
+   │
+   ├── checks grammar
+   │
+   ├── asks yylex() for next token
+   │
+   ├── checks grammar
+   │
+   └── ...
+```
+
+This is extremely important.
+
+---
+
+# 19. Difference between your original program and YACC
+
+| Your original FLEX program      | YACC version                           |
+| ------------------------------- | -------------------------------------- |
+| Lexical analyzer                | Syntax analyzer                        |
+| Identifies tokens               | Checks token arrangement               |
+| Uses regular expressions        | Uses grammar/CFG rules                 |
+| Uses `yylex()`                  | Uses `yyparse()`                       |
+| `yytext` contains matched text  | Works mainly with tokens               |
+| Counts `case` immediately       | Can count after complete grammar match |
+| Finds operators                 | Checks expressions/statements          |
+| Doesn't validate overall syntax | Validates syntax                       |
+| `.l` file                       | `.y` file                              |
+
+---
+
+# 20. The complete compiler-design picture
+
+For your lab, remember this:
+
+```text
+             C-like Input
+                   │
+                   ▼
+             ┌───────────┐
+             │   FLEX    │
+             │  Lexical  │
+             │ Analysis  │
+             └─────┬─────┘
+                   │
+                   │ Tokens
+                   ▼
+             ┌───────────┐
+             │   YACC    │
+             │  Syntax   │
+             │ Analysis  │
+             └─────┬─────┘
+                   │
+             ┌─────┴─────┐
+             ▼           ▼
+          Valid        Invalid
+             │           │
+             ▼           ▼
+       Parse Success   yyerror()
+```
+
+### One-line explanation for viva:
+
+> **FLEX identifies the individual tokens, while YACC uses grammar rules to determine whether those tokens form a syntactically valid switch statement.**
+
+---
+
+## 21. One correction I'd recommend for your lab
+
+The YACC grammar above is intentionally designed around the same features as your original program, but **C's actual expression grammar is more complicated** than the simplified `expression` rule shown here. Also, the `for` rule and function-call grammar are simplified.
+
+If your lab question is specifically **"Implement a YACC program to recognize a switch-case statement"**, you actually don't need all the operators, loops, `printf`, `scanf`, etc. A much smaller grammar is easier to understand, easier to write in an exam, and much easier to explain during viva.
+
+The core YACC grammar can be reduced to:
+
+```text
+switch_statement
+        → SWITCH ( expression ) { case_list }
+
+case_list
+        → case_list case_block
+        | case_block
+        | case_list default_block
+        | default_block
+
+case_block
+        → CASE constant : statement_list
+
+default_block
+        → DEFAULT : statement_list
+```
+
+That is the **actual YACC logic you should focus on understanding**.
